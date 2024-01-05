@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  xray-demo
+
+  Sample SAM Template for xray-demo
+
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+    Tracing: Active
+    Runtime: python3.11
+  Api:
+    TracingEnabled: true
+
+Resources:
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Dev
+      Cors:
+        AllowMethods: "'*'"
+        AllowHeaders: "'*'"
+        AllowOrigin: "'*'"
+      Tags:
+        Project: xray-demo
+
+  GetAllFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: xray-demo-get-all
+      CodeUri: src/getAll
+      Handler: handler.lambda_handler
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /
+            Method: GET
+            RestApiId: !Ref ApiGateway
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DynamoDBTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DynamoDBTable
+      Tags:
+        Project: xray-demo
+
+  GetOneFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: xray-demo-get-one
+      CodeUri: src/getOne
+      Handler: handler.lambda_handler
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /{id}
+            Method: GET
+            RestApiId: !Ref ApiGateway
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DynamoDBTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DynamoDBTable
+      Tags:
+        Project: xray-demo
+
+  PutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: xray-demo-put
+      CodeUri: src/put
+      Handler: handler.lambda_handler
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /
+            Method: POST
+            RestApiId: !Ref ApiGateway
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref DynamoDBTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DynamoDBTable
+      Tags:
+        Project: xray-demo
+
+  DeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: xray-demo-delete
+      CodeUri: src/delete
+      Handler: handler.lambda_handler
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /{id}
+            Method: DELETE
+            RestApiId: !Ref ApiGateway
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DynamoDBTable
+      Tags:
+        Project: xray-demo
+
+  DynamoDBTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: xray-demo-table
+      PrimaryKey:
+        Name: id
+        Type: String
+      Tags:
+        Project: xray-demo
+
+  XRayGroup:
+    Type: AWS::XRay::Group
+    Properties:
+      FilterExpression: !Sub 'fault = true AND http.url BEGINSWITH "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/"'
+      GroupName: xray-demo-group
+      InsightsConfiguration:
+        InsightsEnabled: true
+        NotificationsEnabled: true
+      Tags:
+        - Key: Project
+          Value: xray-demo
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL for Dev stage"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Dev"
